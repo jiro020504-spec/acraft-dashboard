@@ -27,8 +27,49 @@
   }
   h1 {
     font-size: 1.35rem;
-    margin: 0 0 18px;
+    margin: 0 0 10px;
     color: var(--main-dark);
+  }
+  .overdue-summary {
+    display: inline-block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    background: #e9e6da;
+    color: #6a6a60;
+  }
+  .overdue-summary.alert {
+    background: var(--overdue-bg);
+    color: var(--overdue);
+  }
+  .assignee-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .assignee-summary .summary-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .assignee-summary .summary-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .assignee-summary .summary-sep {
+    color: #9a9488;
+    margin: 0 2px;
+  }
+  .assignee-summary .summary-empty {
+    color: #8a8a80;
   }
   h2 {
     font-size: 1rem;
@@ -324,6 +365,7 @@
 <body>
 <div class="container">
   <h1>ACRAFT 月間カレンダー タスク管理</h1>
+  <div class="overdue-summary" id="overdue-summary">締切超過: 0件</div>
 
   <div class="card">
     <div class="cal-nav">
@@ -336,13 +378,13 @@
     </div>
 
     <div class="calendar-weekdays">
-      <div class="weekday-cell sun">日</div>
       <div class="weekday-cell">月</div>
       <div class="weekday-cell">火</div>
       <div class="weekday-cell">水</div>
       <div class="weekday-cell">木</div>
       <div class="weekday-cell">金</div>
       <div class="weekday-cell">土</div>
+      <div class="weekday-cell sun">日</div>
     </div>
     <div class="calendar-grid" id="calendar-grid"></div>
 
@@ -353,6 +395,7 @@
   </div>
 
   <div class="card">
+    <div class="assignee-summary" id="assignee-summary"></div>
     <div class="week-range" id="week-range"></div>
     <div id="week-list"></div>
   </div>
@@ -433,7 +476,8 @@
 
   function startOfWeek(date) {
     const d = new Date(date);
-    d.setDate(d.getDate() - d.getDay());
+    const diffFromMonday = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - diffFromMonday);
     d.setHours(0, 0, 0, 0);
     return d;
   }
@@ -472,6 +516,8 @@
   const monthLabel = document.getElementById('month-label');
   const weekRangeEl = document.getElementById('week-range');
   const weekListEl = document.getElementById('week-list');
+  const assigneeSummaryEl = document.getElementById('assignee-summary');
+  const overdueSummaryEl = document.getElementById('overdue-summary');
   const form = document.getElementById('task-form');
   const formTitle = document.getElementById('form-title');
   const submitBtn = document.getElementById('submit-btn');
@@ -479,6 +525,31 @@
 
   function isOverdue(task) {
     return task.status !== '完了' && task.due < todayStr;
+  }
+
+  function updateOverdueSummary() {
+    const count = tasks.filter(isOverdue).length;
+    overdueSummaryEl.textContent = `締切超過: ${count}件`;
+    overdueSummaryEl.classList.toggle('alert', count > 0);
+  }
+
+  function updateAssigneeSummary(weekTasks) {
+    const activeTasks = weekTasks.filter(t => t.status !== '完了');
+    const counts = {};
+    activeTasks.forEach(t => {
+      counts[t.assignee] = (counts[t.assignee] || 0) + 1;
+    });
+    const names = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'ja'));
+
+    if (names.length === 0) {
+      assigneeSummaryEl.innerHTML = '<span class="summary-empty">未完了タスクはありません</span>';
+      return;
+    }
+
+    assigneeSummaryEl.innerHTML = names.map(name => `
+      <span class="summary-item">
+        <span class="summary-dot" style="background:${assigneeColor(name)}"></span>${escapeHtml(name)} ${counts[name]}件
+      </span>`).join('<span class="summary-sep">・</span>');
   }
 
   function renderCalendar() {
@@ -534,6 +605,8 @@
       .filter(t => t.due >= weekStartStr && t.due <= weekEndStr)
       .sort((a, b) => a.due.localeCompare(b.due));
 
+    updateAssigneeSummary(weekTasks);
+
     if (weekTasks.length === 0) {
       weekListEl.innerHTML = '<div class="empty-state">この週に締切のタスクはありません。</div>';
       return;
@@ -569,6 +642,7 @@
   }
 
   function renderAll() {
+    updateOverdueSummary();
     renderCalendar();
     renderWeekList();
   }
