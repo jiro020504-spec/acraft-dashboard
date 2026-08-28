@@ -214,6 +214,98 @@
     color: var(--main-dark);
     margin-bottom: 12px;
   }
+
+  /* ---- Project accordion ---- */
+  .project-accordion {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .project-accordion.has-overdue { border-color: var(--overdue); }
+  .project-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #e9e6da;
+  }
+  .project-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    text-align: left;
+    flex: 1 1 auto;
+    min-width: 140px;
+  }
+  .project-toggle .chevron {
+    color: var(--main-dark);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+    width: 12px;
+  }
+  .project-toggle .project-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--main-dark);
+    word-break: break-word;
+  }
+  .project-toggle .project-due {
+    font-size: 0.75rem;
+    color: #6a6a60;
+    white-space: nowrap;
+  }
+  .project-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+  }
+
+  @media (max-width: 480px) {
+    .project-header { flex-direction: column; align-items: stretch; }
+    .project-toggle { min-width: 0; }
+  }
+  .badge-count, .badge-incomplete {
+    font-size: 0.72rem;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: #ddd8c8;
+    color: #4a4a3f;
+    white-space: nowrap;
+  }
+  .badge-overdue {
+    font-size: 0.72rem;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--overdue-bg);
+    color: var(--overdue);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .project-badges .icon-btn-edit,
+  .project-badges .icon-btn-delete {
+    padding: 3px 9px;
+    font-size: 0.7rem;
+  }
+  .project-body {
+    padding: 10px 12px;
+    background: var(--card-bg);
+  }
+  .project-body .empty-state.small {
+    padding: 12px;
+    font-size: 0.82rem;
+  }
+
   .task-card {
     display: flex;
     flex-direction: column;
@@ -224,6 +316,7 @@
     padding: 10px 14px;
     margin-bottom: 10px;
   }
+  .task-card:last-child { margin-bottom: 0; }
   .task-card.overdue {
     background: var(--overdue-bg);
     border-color: var(--overdue);
@@ -253,7 +346,7 @@
     font-weight: 700;
   }
   .task-info { min-width: 0; }
-  .task-project {
+  .task-name {
     font-size: 0.92rem;
     font-weight: 700;
     word-break: break-word;
@@ -315,18 +408,13 @@
     cursor: not-allowed;
   }
 
-  .task-side {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
   .status-badge {
     display: inline-block;
     padding: 3px 10px;
     border-radius: 999px;
     font-size: 0.75rem;
     white-space: nowrap;
+    flex-shrink: 0;
   }
   .status-未着手 { background: #ddd8c8; color: #4a4a3f; }
   .status-進行中 { background: #e2c98a; color: #5c4a12; }
@@ -335,14 +423,15 @@
     display: flex;
     gap: 6px;
   }
-  .row-actions button {
+  .row-actions button, .project-badges button {
     padding: 5px 10px;
     font-size: 0.75rem;
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    font-family: inherit;
   }
-  .icon-btn-edit { background: #e9e6da; color: var(--text); }
+  .icon-btn-edit { background: #dcd8ca; color: var(--text); }
   .icon-btn-delete { background: var(--overdue-bg); color: var(--overdue); }
 
   .empty-state {
@@ -351,10 +440,16 @@
     color: #7a7a70;
   }
 
+  .form-hint {
+    font-size: 0.82rem;
+    color: var(--overdue);
+    margin: 0 0 10px;
+  }
+
   /* ---- Form ---- */
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px;
     align-items: end;
   }
@@ -362,6 +457,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
   }
   .field label {
     font-size: 0.78rem;
@@ -377,6 +473,11 @@
     color: var(--text);
     font-family: inherit;
     width: 100%;
+    min-width: 0;
+  }
+  input:disabled, select:disabled {
+    background: #ecebe4;
+    color: #9a9488;
   }
   input:focus, select:focus {
     outline: 2px solid var(--main);
@@ -398,7 +499,8 @@
     font-size: 0.9rem;
     cursor: pointer;
   }
-  .btn-primary:hover { background: var(--main-dark); }
+  .btn-primary:hover:not(:disabled) { background: var(--main-dark); }
+  .btn-primary:disabled { background: #cfcabb; color: #8a8a80; cursor: not-allowed; }
   .btn-secondary {
     background: transparent;
     color: var(--main-dark);
@@ -410,9 +512,6 @@
   }
   .btn-secondary:hover { background: #e9e6da; }
 
-  @media (max-width: 700px) {
-    .form-grid { grid-template-columns: 1fr 1fr; }
-  }
   @media (max-width: 400px) {
     .form-grid { grid-template-columns: 1fr; }
   }
@@ -457,17 +556,43 @@
   </div>
 
   <div class="card">
-    <h2 id="form-title">タスクを追加</h2>
+    <h2 id="project-form-title">プロジェクトを追加</h2>
+    <form id="project-form">
+      <input type="hidden" id="project-id">
+      <div class="form-grid">
+        <div class="field">
+          <label for="project-name">プロジェクト名</label>
+          <input type="text" id="project-name" required placeholder="例: 銀座納品">
+        </div>
+        <div class="field">
+          <label for="project-due">締切日(全体・任意)</label>
+          <input type="date" id="project-due">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="project-submit-btn">プロジェクトを追加</button>
+          <button type="button" class="btn-secondary" id="project-cancel-edit" style="display:none;">キャンセル</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 id="task-form-title">タスクを追加</h2>
+    <p class="form-hint" id="task-form-hint" style="display:none;">先にプロジェクトを追加してください。</p>
     <form id="task-form">
       <input type="hidden" id="task-id">
       <div class="form-grid">
         <div class="field">
-          <label for="assignee">担当者</label>
-          <input type="text" id="assignee" required placeholder="例: 山田">
+          <label for="task-project-select">プロジェクト</label>
+          <select id="task-project-select" required></select>
         </div>
         <div class="field">
-          <label for="project">案件名</label>
-          <input type="text" id="project" required placeholder="例: A社サイト改修">
+          <label for="task-name">タスク名</label>
+          <input type="text" id="task-name" required placeholder="例: 梱包">
+        </div>
+        <div class="field">
+          <label for="assignee">担当者</label>
+          <input type="text" id="assignee" required placeholder="例: 山田">
         </div>
         <div class="field">
           <label for="due">締切日</label>
@@ -489,19 +614,6 @@
 <script>
   const STORAGE_KEY = 'acraft-calendar-tasks';
   const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
-
-  function loadTasks() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveTasks(list) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -560,25 +672,88 @@
     return '進行中';
   }
 
-  function normalizeTask(t) {
+  function normalizeTaskCounts(t) {
     const total = (typeof t.total === 'number' && t.total > 0) ? Math.floor(t.total) : 1;
     let done = (typeof t.done === 'number') ? t.done : (t.status === '完了' ? total : 0);
     done = Math.max(0, Math.min(Math.floor(done), total));
-    t.total = total;
-    t.done = done;
-    if (!t.status) t.status = computeStatus(done, total);
-    return t;
+    return {
+      id: t.id || uid(),
+      name: t.name || t.project || '(無題タスク)',
+      assignee: t.assignee || '',
+      due: t.due || '',
+      total,
+      done,
+      status: t.status || computeStatus(done, total)
+    };
+  }
+
+  // Reads projects from storage, migrating old flat task-array data
+  // (from before the project/task upgrade) into "1 project = 1 task".
+  function loadProjects() {
+    let raw;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return [];
+    }
+    if (!raw) return [];
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return [];
+    }
+    if (!Array.isArray(data)) return [];
+
+    const isOldFlatFormat = data.length > 0 && !Array.isArray(data[0].tasks);
+
+    if (isOldFlatFormat) {
+      return data.map(old => ({
+        id: uid(),
+        name: old.project || old.name || '(無題プロジェクト)',
+        dueDate: old.due || '',
+        tasks: [normalizeTaskCounts(old)]
+      }));
+    }
+
+    return data.map(p => ({
+      id: p.id || uid(),
+      name: p.name || '(無題プロジェクト)',
+      dueDate: p.dueDate || '',
+      tasks: Array.isArray(p.tasks) ? p.tasks.map(normalizeTaskCounts) : []
+    }));
+  }
+
+  function saveProjects(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function allTaskEntries() {
+    const result = [];
+    projects.forEach(p => {
+      p.tasks.forEach(t => result.push({ project: p, task: t }));
+    });
+    return result;
+  }
+
+  function isOverdue(task) {
+    return task.status !== '完了' && task.due < todayStr;
   }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = formatYMD(today);
 
-  let tasks = loadTasks().map(normalizeTask);
-  let editingId = null;
+  let projects = loadProjects();
+  saveProjects(projects);
+
+  let editingTaskRef = null;
+  let editingProjectId = null;
   let displayYear = today.getFullYear();
   let displayMonth = today.getMonth();
   let selectedWeekStart = startOfWeek(today);
+  const projectOpenState = {};
 
   const calendarGrid = document.getElementById('calendar-grid');
   const monthLabel = document.getElementById('month-label');
@@ -586,17 +761,21 @@
   const weekListEl = document.getElementById('week-list');
   const assigneeSummaryEl = document.getElementById('assignee-summary');
   const overdueSummaryEl = document.getElementById('overdue-summary');
-  const form = document.getElementById('task-form');
-  const formTitle = document.getElementById('form-title');
+
+  const projectForm = document.getElementById('project-form');
+  const projectFormTitle = document.getElementById('project-form-title');
+  const projectSubmitBtn = document.getElementById('project-submit-btn');
+  const projectCancelEditBtn = document.getElementById('project-cancel-edit');
+
+  const taskForm = document.getElementById('task-form');
+  const taskFormTitle = document.getElementById('task-form-title');
+  const taskFormHint = document.getElementById('task-form-hint');
+  const taskProjectSelect = document.getElementById('task-project-select');
   const submitBtn = document.getElementById('submit-btn');
   const cancelEditBtn = document.getElementById('cancel-edit');
 
-  function isOverdue(task) {
-    return task.status !== '完了' && task.due < todayStr;
-  }
-
   function updateOverdueSummary() {
-    const count = tasks.filter(isOverdue).length;
+    const count = allTaskEntries().filter(({ task }) => isOverdue(task)).length;
     overdueSummaryEl.textContent = `締切超過: ${count}件`;
     overdueSummaryEl.classList.toggle('alert', count > 0);
   }
@@ -620,12 +799,28 @@
       </span>`).join('<span class="summary-sep">・</span>');
   }
 
+  function updateProjectSelectOptions() {
+    const current = taskProjectSelect.value;
+    taskProjectSelect.innerHTML = projects
+      .map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
+      .join('');
+    if (projects.some(p => p.id === current)) taskProjectSelect.value = current;
+
+    const hasProjects = projects.length > 0;
+    taskFormHint.style.display = hasProjects ? 'none' : 'block';
+    ['task-project-select', 'task-name', 'assignee', 'due', 'total-count'].forEach(id => {
+      document.getElementById(id).disabled = !hasProjects;
+    });
+    submitBtn.disabled = !hasProjects;
+  }
+
   function renderCalendar() {
     monthLabel.textContent = `${displayYear}年${displayMonth + 1}月`;
 
     const firstOfMonth = new Date(displayYear, displayMonth, 1);
     const gridStart = startOfWeek(firstOfMonth);
     const selectedWeekEnd = addDays(selectedWeekStart, 6);
+    const flatTasks = allTaskEntries().map(e => e.task);
 
     let html = '';
     for (let i = 0; i < 42; i++) {
@@ -635,7 +830,7 @@
       const isToday = cellStr === todayStr;
       const isSelectedWeek = cellDate >= selectedWeekStart && cellDate <= selectedWeekEnd;
 
-      const dayTasks = tasks.filter(t => t.due === cellStr);
+      const dayTasks = flatTasks.filter(t => t.due === cellStr);
       const hasOverdue = cellStr < todayStr && dayTasks.some(t => t.status !== '完了');
 
       const classes = ['day-cell'];
@@ -660,6 +855,87 @@
     calendarGrid.innerHTML = html;
   }
 
+  function taskCardHtml(project, task) {
+    const overdue = isOverdue(task);
+    const d = parseYMD(task.due);
+    const dueLabel = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_JP[d.getDay()]})`;
+    const initial = task.assignee.trim().charAt(0) || '?';
+    const pct = Math.round((task.done / task.total) * 100);
+
+    return `
+      <div class="task-card ${overdue ? 'overdue' : ''}">
+        <div class="task-top">
+          <div class="task-main">
+            <span class="assignee-chip" style="background:${assigneeColor(task.assignee)}">${escapeHtml(initial)}</span>
+            <div class="task-info">
+              <div class="task-name">${escapeHtml(task.name)}</div>
+              <div class="task-meta">
+                担当: ${escapeHtml(task.assignee)} ・
+                <span class="due-text ${overdue ? 'overdue-text' : ''}">${dueLabel}${overdue ? '（超過）' : ''}</span>
+              </div>
+            </div>
+          </div>
+          <span class="status-badge status-${task.status}">${task.status}</span>
+        </div>
+        <div class="progress-row">
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <span class="progress-text">${task.done}/${task.total}完了</span>
+        </div>
+        <div class="task-actions-row">
+          <div class="progress-buttons">
+            <button class="icon-btn-dec" data-action="dec" data-project-id="${project.id}" data-task-id="${task.id}" ${task.done <= 0 ? 'disabled' : ''}>-1</button>
+            <button class="icon-btn-inc" data-action="inc" data-project-id="${project.id}" data-task-id="${task.id}" ${task.done >= task.total ? 'disabled' : ''}>+1完了</button>
+          </div>
+          <div class="row-actions">
+            <button class="icon-btn-edit" data-action="edit-task" data-project-id="${project.id}" data-task-id="${task.id}">編集</button>
+            <button class="icon-btn-delete" data-action="delete-task" data-project-id="${project.id}" data-task-id="${task.id}">削除</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function projectAccordionHtml(p) {
+    const hasOverdueAny = p.tasks.some(isOverdue);
+    const incompleteCount = p.tasks.filter(t => t.status !== '完了').length;
+
+    if (!(p.id in projectOpenState)) {
+      projectOpenState[p.id] = hasOverdueAny;
+    }
+    const isOpen = projectOpenState[p.id];
+
+    const sortedTasks = [...p.tasks].sort((a, b) => a.due.localeCompare(b.due));
+    let dueLabel = '';
+    if (p.dueDate) {
+      const d = parseYMD(p.dueDate);
+      dueLabel = `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+
+    const bodyHtml = sortedTasks.length === 0
+      ? '<div class="empty-state small">タスクがありません</div>'
+      : sortedTasks.map(t => taskCardHtml(p, t)).join('');
+
+    return `
+      <div class="project-accordion ${hasOverdueAny ? 'has-overdue' : ''}">
+        <div class="project-header">
+          <button type="button" class="project-toggle" data-action="toggle-project" data-project-id="${p.id}">
+            <span class="chevron">${isOpen ? '▼' : '▶'}</span>
+            <span class="project-name">${escapeHtml(p.name)}</span>
+            ${dueLabel ? `<span class="project-due">締切: ${dueLabel}</span>` : ''}
+          </button>
+          <div class="project-badges">
+            <span class="badge-count">${p.tasks.length}件</span>
+            <span class="badge-incomplete">未完了 ${incompleteCount}</span>
+            ${hasOverdueAny ? '<span class="badge-overdue">超過あり</span>' : ''}
+            <button type="button" class="icon-btn-edit" data-action="edit-project" data-project-id="${p.id}">編集</button>
+            <button type="button" class="icon-btn-delete" data-action="delete-project" data-project-id="${p.id}">削除</button>
+          </div>
+        </div>
+        <div class="project-body" ${isOpen ? '' : 'style="display:none"'}>
+          ${bodyHtml}
+        </div>
+      </div>`;
+  }
+
   function renderWeekList() {
     const weekEnd = addDays(selectedWeekStart, 6);
     const weekStartStr = formatYMD(selectedWeekStart);
@@ -669,59 +945,33 @@
       `${selectedWeekStart.getMonth() + 1}/${selectedWeekStart.getDate()}〜` +
       `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}の週`;
 
-    const weekTasks = tasks
-      .filter(t => t.due >= weekStartStr && t.due <= weekEndStr)
-      .sort((a, b) => a.due.localeCompare(b.due));
+    const weekEntries = allTaskEntries().filter(
+      ({ task }) => task.due >= weekStartStr && task.due <= weekEndStr
+    );
 
-    updateAssigneeSummary(weekTasks);
+    updateAssigneeSummary(weekEntries.map(e => e.task));
 
-    if (weekTasks.length === 0) {
+    if (weekEntries.length === 0) {
       weekListEl.innerHTML = '<div class="empty-state">この週に締切のタスクはありません。</div>';
       return;
     }
 
-    weekListEl.innerHTML = weekTasks.map(task => {
-      const overdue = isOverdue(task);
-      const d = parseYMD(task.due);
-      const dueLabel = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_JP[d.getDay()]})`;
-      const initial = task.assignee.trim().charAt(0) || '?';
-      const pct = Math.round((task.done / task.total) * 100);
+    const projectMinDue = new Map();
+    weekEntries.forEach(({ project, task }) => {
+      const cur = projectMinDue.get(project.id);
+      if (!cur || task.due < cur) projectMinDue.set(project.id, task.due);
+    });
 
-      return `
-        <div class="task-card ${overdue ? 'overdue' : ''}">
-          <div class="task-top">
-            <div class="task-main">
-              <span class="assignee-chip" style="background:${assigneeColor(task.assignee)}">${escapeHtml(initial)}</span>
-              <div class="task-info">
-                <div class="task-project">${escapeHtml(task.project)}</div>
-                <div class="task-meta">
-                  担当: ${escapeHtml(task.assignee)} ・
-                  <span class="due-text ${overdue ? 'overdue-text' : ''}">${dueLabel}${overdue ? '（超過）' : ''}</span>
-                </div>
-              </div>
-            </div>
-            <span class="status-badge status-${task.status}">${task.status}</span>
-          </div>
-          <div class="progress-row">
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <span class="progress-text">${task.done}/${task.total}完了</span>
-          </div>
-          <div class="task-actions-row">
-            <div class="progress-buttons">
-              <button class="icon-btn-dec" data-action="dec" data-id="${task.id}" ${task.done <= 0 ? 'disabled' : ''}>-1</button>
-              <button class="icon-btn-inc" data-action="inc" data-id="${task.id}" ${task.done >= task.total ? 'disabled' : ''}>+1完了</button>
-            </div>
-            <div class="row-actions">
-              <button class="icon-btn-edit" data-action="edit" data-id="${task.id}">編集</button>
-              <button class="icon-btn-delete" data-action="delete" data-id="${task.id}">削除</button>
-            </div>
-          </div>
-        </div>`;
-    }).join('');
+    const relevantProjects = projects
+      .filter(p => projectMinDue.has(p.id))
+      .sort((a, b) => projectMinDue.get(a.id).localeCompare(projectMinDue.get(b.id)));
+
+    weekListEl.innerHTML = relevantProjects.map(p => projectAccordionHtml(p)).join('');
   }
 
   function renderAll() {
     updateOverdueSummary();
+    updateProjectSelectOptions();
     renderCalendar();
     renderWeekList();
   }
@@ -761,29 +1011,97 @@
     renderAll();
   });
 
-  function resetForm() {
-    form.reset();
-    document.getElementById('task-id').value = '';
-    editingId = null;
-    formTitle.textContent = 'タスクを追加';
-    submitBtn.textContent = '追加';
-    cancelEditBtn.style.display = 'none';
+  // ---- Project form ----
+  function resetProjectForm() {
+    projectForm.reset();
+    document.getElementById('project-id').value = '';
+    editingProjectId = null;
+    projectFormTitle.textContent = 'プロジェクトを追加';
+    projectSubmitBtn.textContent = 'プロジェクトを追加';
+    projectCancelEditBtn.style.display = 'none';
   }
 
-  form.addEventListener('submit', (e) => {
+  function startEditProject(p) {
+    editingProjectId = p.id;
+    document.getElementById('project-id').value = p.id;
+    document.getElementById('project-name').value = p.name;
+    document.getElementById('project-due').value = p.dueDate || '';
+    projectFormTitle.textContent = 'プロジェクトを編集';
+    projectSubmitBtn.textContent = '更新';
+    projectCancelEditBtn.style.display = 'inline-block';
+    window.scrollTo({ top: projectForm.closest('.card').offsetTop - 10, behavior: 'smooth' });
+  }
+
+  projectForm.addEventListener('submit', (e) => {
     e.preventDefault();
+    const name = document.getElementById('project-name').value.trim();
+    const dueDate = document.getElementById('project-due').value;
+    if (!name) return;
+
+    if (editingProjectId) {
+      const p = projects.find(p => p.id === editingProjectId);
+      if (p) {
+        p.name = name;
+        p.dueDate = dueDate;
+      }
+    } else {
+      projects.push({ id: uid(), name, dueDate, tasks: [] });
+    }
+
+    saveProjects(projects);
+    resetProjectForm();
+    renderAll();
+  });
+
+  projectCancelEditBtn.addEventListener('click', resetProjectForm);
+
+  // ---- Task form ----
+  function resetTaskForm() {
+    taskForm.reset();
+    document.getElementById('task-id').value = '';
+    editingTaskRef = null;
+    taskFormTitle.textContent = 'タスクを追加';
+    submitBtn.textContent = '追加';
+    cancelEditBtn.style.display = 'none';
+    updateProjectSelectOptions();
+  }
+
+  function startEditTask(project, task) {
+    editingTaskRef = { projectId: project.id, taskId: task.id };
+    document.getElementById('task-id').value = task.id;
+    taskProjectSelect.value = project.id;
+    document.getElementById('task-name').value = task.name;
+    document.getElementById('assignee').value = task.assignee;
+    document.getElementById('due').value = task.due;
+    document.getElementById('total-count').value = task.total;
+    taskFormTitle.textContent = 'タスクを編集';
+    submitBtn.textContent = '更新';
+    cancelEditBtn.style.display = 'inline-block';
+    window.scrollTo({ top: taskForm.closest('.card').offsetTop - 10, behavior: 'smooth' });
+  }
+
+  taskForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const projectId = taskProjectSelect.value;
+    const name = document.getElementById('task-name').value.trim();
     const assignee = document.getElementById('assignee').value.trim();
-    const project = document.getElementById('project').value.trim();
     const due = document.getElementById('due').value;
     const totalCount = Math.max(1, parseInt(document.getElementById('total-count').value, 10) || 1);
 
-    if (!assignee || !project || !due) return;
+    if (!projectId || !name || !assignee || !due) return;
+    const targetProject = projects.find(p => p.id === projectId);
+    if (!targetProject) return;
 
-    if (editingId) {
-      const t = tasks.find(t => t.id === editingId);
+    if (editingTaskRef) {
+      const sourceProject = projects.find(p => p.id === editingTaskRef.projectId);
+      const t = sourceProject && sourceProject.tasks.find(t => t.id === editingTaskRef.taskId);
       if (t) {
+        if (sourceProject.id !== targetProject.id) {
+          sourceProject.tasks = sourceProject.tasks.filter(x => x.id !== t.id);
+          targetProject.tasks.push(t);
+        }
+        t.name = name;
         t.assignee = assignee;
-        t.project = project;
         t.due = due;
         if (t.total !== totalCount) {
           t.total = totalCount;
@@ -792,58 +1110,74 @@
         }
       }
     } else {
-      tasks.push({
-        id: uid(), assignee, project, due,
+      targetProject.tasks.push({
+        id: uid(), name, assignee, due,
         total: totalCount, done: 0, status: computeStatus(0, totalCount)
       });
     }
 
-    saveTasks(tasks);
-    resetForm();
+    saveProjects(projects);
+    resetTaskForm();
     renderAll();
   });
 
-  cancelEditBtn.addEventListener('click', resetForm);
+  cancelEditBtn.addEventListener('click', resetTaskForm);
 
+  // ---- Week list interactions (accordion + task actions) ----
   weekListEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-action]');
+    const btn = e.target.closest('button[data-action], .project-toggle[data-action]');
     if (!btn) return;
-    const id = btn.dataset.id;
     const action = btn.dataset.action;
+    const projectId = btn.dataset.projectId;
 
-    if (action === 'delete') {
-      if (confirm('このタスクを削除しますか?')) {
-        tasks = tasks.filter(t => t.id !== id);
-        saveTasks(tasks);
+    if (action === 'toggle-project') {
+      projectOpenState[projectId] = !projectOpenState[projectId];
+      renderWeekList();
+      return;
+    }
+
+    if (action === 'edit-project') {
+      const p = projects.find(p => p.id === projectId);
+      if (p) startEditProject(p);
+      return;
+    }
+
+    if (action === 'delete-project') {
+      if (confirm('このプロジェクトを削除しますか?中のタスクもすべて削除されます。')) {
+        projects = projects.filter(p => p.id !== projectId);
+        delete projectOpenState[projectId];
+        saveProjects(projects);
         renderAll();
       }
-    } else if (action === 'inc') {
-      const t = tasks.find(t => t.id === id);
-      if (!t || t.done >= t.total) return;
-      t.done += 1;
-      t.status = computeStatus(t.done, t.total);
-      saveTasks(tasks);
+      return;
+    }
+
+    const taskId = btn.dataset.taskId;
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    const task = project.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (action === 'inc') {
+      if (task.done >= task.total) return;
+      task.done += 1;
+      task.status = computeStatus(task.done, task.total);
+      saveProjects(projects);
       renderAll();
     } else if (action === 'dec') {
-      const t = tasks.find(t => t.id === id);
-      if (!t || t.done <= 0) return;
-      t.done -= 1;
-      t.status = computeStatus(t.done, t.total);
-      saveTasks(tasks);
+      if (task.done <= 0) return;
+      task.done -= 1;
+      task.status = computeStatus(task.done, task.total);
+      saveProjects(projects);
       renderAll();
-    } else if (action === 'edit') {
-      const t = tasks.find(t => t.id === id);
-      if (!t) return;
-      editingId = id;
-      document.getElementById('task-id').value = t.id;
-      document.getElementById('assignee').value = t.assignee;
-      document.getElementById('project').value = t.project;
-      document.getElementById('due').value = t.due;
-      document.getElementById('total-count').value = t.total;
-      formTitle.textContent = 'タスクを編集';
-      submitBtn.textContent = '更新';
-      cancelEditBtn.style.display = 'inline-block';
-      window.scrollTo({ top: document.querySelector('.card:last-of-type').offsetTop - 10, behavior: 'smooth' });
+    } else if (action === 'delete-task') {
+      if (confirm('このタスクを削除しますか?')) {
+        project.tasks = project.tasks.filter(t => t.id !== taskId);
+        saveProjects(projects);
+        renderAll();
+      }
+    } else if (action === 'edit-task') {
+      startEditTask(project, task);
     }
   });
 
