@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACRAFT 月間カレンダー タスク管理</title>
+<style>
+  :root {
+    --main: #6F7563;
+    --main-dark: #5a5f4f;
+    --bg: #F4F0E6;
+    --text: #2F3430;
+    --card-bg: #ffffff;
+    --border: #d8d3c4;
+    --overdue: #b3452f;
+    --overdue-bg: #f7e2dc;
+    --selected-bg: #e4e0cf;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 1.35rem;
+    margin: 0 0 18px;
+    color: var(--main-dark);
+  }
+  h2 {
+    font-size: 1rem;
+    margin: 0 0 12px;
+    color: var(--main-dark);
+  }
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  /* ---- Calendar header / nav ---- */
+  .cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .cal-nav .month-label {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--main-dark);
+  }
+  .cal-nav-buttons {
+    display: flex;
+    gap: 6px;
+  }
+  .nav-btn {
+    background: var(--main);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .nav-btn:hover { background: var(--main-dark); }
+  .today-btn {
+    background: transparent;
+    border: 1px solid var(--main);
+    color: var(--main-dark);
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .today-btn:hover { background: #e9e6da; }
+
+  /* ---- Calendar grid ---- */
+  .calendar-weekdays, .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  .calendar-weekdays {
+    margin-bottom: 4px;
+  }
+  .weekday-cell {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--main-dark);
+    padding: 4px 0;
+  }
+  .weekday-cell.sun { color: var(--overdue); }
+
+  .day-cell {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    cursor: pointer;
+    position: relative;
+  }
+  .day-cell:hover { border-color: var(--main); }
+  .day-cell.other-month { opacity: 0.4; }
+  .day-cell.today { border: 2px solid var(--main); }
+  .day-cell.selected-week { background: var(--selected-bg); }
+  .day-num {
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .day-num.overdue-text { color: var(--overdue); font-weight: 700; }
+  .day-badge {
+    align-self: flex-end;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    background: var(--main);
+    color: #fff;
+    font-size: 0.62rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+  .day-badge.overdue { background: var(--overdue); }
+
+  .legend {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: #6a6a60;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+  }
+  .legend .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .legend .swatch.normal { background: var(--main); }
+  .legend .swatch.overdue { background: var(--overdue); }
+
+  @media (max-width: 480px) {
+    .day-cell { min-height: 42px; padding: 3px; }
+    .day-num { font-size: 0.7rem; }
+    .weekday-cell { font-size: 0.68rem; }
+  }
+
+  /* ---- Week list ---- */
+  .week-range {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--main-dark);
+    margin-bottom: 12px;
+  }
+  .task-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+  }
+  .task-card.overdue {
+    background: var(--overdue-bg);
+    border-color: var(--overdue);
+  }
+  .task-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .assignee-chip {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+  .task-info { min-width: 0; }
+  .task-project {
+    font-size: 0.92rem;
+    font-weight: 700;
+    word-break: break-word;
+  }
+  .task-meta {
+    font-size: 0.78rem;
+    color: #6a6a60;
+  }
+  .task-meta .due-text.overdue-text { color: var(--overdue); font-weight: 700; }
+  .task-side {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  .status-未着手 { background: #ddd8c8; color: #4a4a3f; }
+  .status-進行中 { background: #e2c98a; color: #5c4a12; }
+  .status-完了 { background: #b9c6ad; color: #34432b; }
+  .row-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .row-actions button {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .icon-btn-edit { background: #e9e6da; color: var(--text); }
+  .icon-btn-delete { background: var(--overdue-bg); color: var(--overdue); }
+
+  .empty-state {
+    text-align: center;
+    padding: 30px;
+    color: #7a7a70;
+  }
+
+  /* ---- Form ---- */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    align-items: end;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .field label {
+    font-size: 0.78rem;
+    color: var(--text);
+    opacity: 0.75;
+  }
+  input, select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: #fff;
+    color: var(--text);
+    font-family: inherit;
+    width: 100%;
+  }
+  input:focus, select:focus {
+    outline: 2px solid var(--main);
+    outline-offset: 1px;
+  }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  button { font-family: inherit; }
+  .btn-primary {
+    background: var(--main);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn-primary:hover { background: var(--main-dark); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--main-dark);
+    border: 1px solid var(--main);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { background: #e9e6da; }
+
+  @media (max-width: 700px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 400px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ACRAFT 月間カレンダー タスク管理</h1>
+
+  <div class="card">
+    <div class="cal-nav">
+      <div class="cal-nav-buttons">
+        <button class="nav-btn" id="prev-month" aria-label="前の月">&#9664;</button>
+        <button class="nav-btn" id="next-month" aria-label="次の月">&#9654;</button>
+        <button class="today-btn" id="today-btn">今日</button>
+      </div>
+      <div class="month-label" id="month-label"></div>
+    </div>
+
+    <div class="calendar-weekdays">
+      <div class="weekday-cell sun">日</div>
+      <div class="weekday-cell">月</div>
+      <div class="weekday-cell">火</div>
+      <div class="weekday-cell">水</div>
+      <div class="weekday-cell">木</div>
+      <div class="weekday-cell">金</div>
+      <div class="weekday-cell">土</div>
+    </div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+
+    <div class="legend">
+      <span><span class="swatch normal"></span>締切のあるタスク件数</span>
+      <span><span class="swatch overdue"></span>締切超過(未完了)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="week-range" id="week-range"></div>
+    <div id="week-list"></div>
+  </div>
+
+  <div class="card">
+    <h2 id="form-title">タスクを追加</h2>
+    <form id="task-form">
+      <input type="hidden" id="task-id">
+      <div class="form-grid">
+        <div class="field">
+          <label for="assignee">担当者</label>
+          <input type="text" id="assignee" required placeholder="例: 山田">
+        </div>
+        <div class="field">
+          <label for="project">案件名</label>
+          <input type="text" id="project" required placeholder="例: A社サイト改修">
+        </div>
+        <div class="field">
+          <label for="due">締切日</label>
+          <input type="date" id="due" required>
+        </div>
+        <div class="field">
+          <label for="status">ステータス</label>
+          <select id="status">
+            <option value="未着手">未着手</option>
+            <option value="進行中">進行中</option>
+            <option value="完了">完了</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="submit-btn">追加</button>
+          <button type="button" class="btn-secondary" id="cancel-edit" style="display:none;">キャンセル</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'acraft-calendar-tasks';
+  const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
+
+  function loadTasks() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveTasks(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function formatYMD(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  }
+
+  function parseYMD(str) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function addDays(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  function startOfWeek(date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      hash |= 0;
+    }
+    return hash;
+  }
+
+  function assigneeColor(name) {
+    const hue = Math.abs(hashCode(name)) % 360;
+    return `hsl(${hue}, 42%, 40%)`;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = formatYMD(today);
+
+  let tasks = loadTasks();
+  let editingId = null;
+  let displayYear = today.getFullYear();
+  let displayMonth = today.getMonth();
+  let selectedWeekStart = startOfWeek(today);
+
+  const calendarGrid = document.getElementById('calendar-grid');
+  const monthLabel = document.getElementById('month-label');
+  const weekRangeEl = document.getElementById('week-range');
+  const weekListEl = document.getElementById('week-list');
+  const form = document.getElementById('task-form');
+  const formTitle = document.getElementById('form-title');
+  const submitBtn = document.getElementById('submit-btn');
+  const cancelEditBtn = document.getElementById('cancel-edit');
+
+  function isOverdue(task) {
+    return task.status !== '完了' && task.due < todayStr;
+  }
+
+  function renderCalendar() {
+    monthLabel.textContent = `${displayYear}年${displayMonth + 1}月`;
+
+    const firstOfMonth = new Date(displayYear, displayMonth, 1);
+    const gridStart = startOfWeek(firstOfMonth);
+    const selectedWeekEnd = addDays(selectedWeekStart, 6);
+
+    let html = '';
+    for (let i = 0; i < 42; i++) {
+      const cellDate = addDays(gridStart, i);
+      const cellStr = formatYMD(cellDate);
+      const isOtherMonth = cellDate.getMonth() !== displayMonth;
+      const isToday = cellStr === todayStr;
+      const isSelectedWeek = cellDate >= selectedWeekStart && cellDate <= selectedWeekEnd;
+
+      const dayTasks = tasks.filter(t => t.due === cellStr);
+      const hasOverdue = cellStr < todayStr && dayTasks.some(t => t.status !== '完了');
+
+      const classes = ['day-cell'];
+      if (isOtherMonth) classes.push('other-month');
+      if (isToday) classes.push('today');
+      if (isSelectedWeek) classes.push('selected-week');
+
+      const numClasses = ['day-num'];
+      if (hasOverdue) numClasses.push('overdue-text');
+
+      let badgeHtml = '';
+      if (dayTasks.length > 0) {
+        badgeHtml = `<span class="day-badge ${hasOverdue ? 'overdue' : ''}">${dayTasks.length}</span>`;
+      }
+
+      html += `
+        <div class="${classes.join(' ')}" data-date="${cellStr}">
+          <span class="${numClasses.join(' ')}">${cellDate.getDate()}</span>
+          ${badgeHtml}
+        </div>`;
+    }
+    calendarGrid.innerHTML = html;
+  }
+
+  function renderWeekList() {
+    const weekEnd = addDays(selectedWeekStart, 6);
+    const weekStartStr = formatYMD(selectedWeekStart);
+    const weekEndStr = formatYMD(weekEnd);
+
+    weekRangeEl.textContent =
+      `${selectedWeekStart.getMonth() + 1}/${selectedWeekStart.getDate()}〜` +
+      `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}の週`;
+
+    const weekTasks = tasks
+      .filter(t => t.due >= weekStartStr && t.due <= weekEndStr)
+      .sort((a, b) => a.due.localeCompare(b.due));
+
+    if (weekTasks.length === 0) {
+      weekListEl.innerHTML = '<div class="empty-state">この週に締切のタスクはありません。</div>';
+      return;
+    }
+
+    weekListEl.innerHTML = weekTasks.map(task => {
+      const overdue = isOverdue(task);
+      const d = parseYMD(task.due);
+      const dueLabel = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_JP[d.getDay()]})`;
+      const initial = task.assignee.trim().charAt(0) || '?';
+
+      return `
+        <div class="task-card ${overdue ? 'overdue' : ''}">
+          <div class="task-main">
+            <span class="assignee-chip" style="background:${assigneeColor(task.assignee)}">${escapeHtml(initial)}</span>
+            <div class="task-info">
+              <div class="task-project">${escapeHtml(task.project)}</div>
+              <div class="task-meta">
+                担当: ${escapeHtml(task.assignee)} ・
+                <span class="due-text ${overdue ? 'overdue-text' : ''}">${dueLabel}${overdue ? '（超過）' : ''}</span>
+              </div>
+            </div>
+          </div>
+          <div class="task-side">
+            <span class="status-badge status-${task.status}">${task.status}</span>
+            <div class="row-actions">
+              <button class="icon-btn-edit" data-action="edit" data-id="${task.id}">編集</button>
+              <button class="icon-btn-delete" data-action="delete" data-id="${task.id}">削除</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderAll() {
+    renderCalendar();
+    renderWeekList();
+  }
+
+  function selectWeek(dateStr) {
+    const date = parseYMD(dateStr);
+    selectedWeekStart = startOfWeek(date);
+    if (date.getMonth() !== displayMonth || date.getFullYear() !== displayYear) {
+      displayYear = date.getFullYear();
+      displayMonth = date.getMonth();
+    }
+    renderAll();
+  }
+
+  calendarGrid.addEventListener('click', (e) => {
+    const cell = e.target.closest('.day-cell');
+    if (!cell) return;
+    selectWeek(cell.dataset.date);
+  });
+
+  document.getElementById('prev-month').addEventListener('click', () => {
+    displayMonth -= 1;
+    if (displayMonth < 0) { displayMonth = 11; displayYear -= 1; }
+    renderCalendar();
+  });
+
+  document.getElementById('next-month').addEventListener('click', () => {
+    displayMonth += 1;
+    if (displayMonth > 11) { displayMonth = 0; displayYear += 1; }
+    renderCalendar();
+  });
+
+  document.getElementById('today-btn').addEventListener('click', () => {
+    displayYear = today.getFullYear();
+    displayMonth = today.getMonth();
+    selectedWeekStart = startOfWeek(today);
+    renderAll();
+  });
+
+  function resetForm() {
+    form.reset();
+    document.getElementById('task-id').value = '';
+    editingId = null;
+    formTitle.textContent = 'タスクを追加';
+    submitBtn.textContent = '追加';
+    cancelEditBtn.style.display = 'none';
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const assignee = document.getElementById('assignee').value.trim();
+    const project = document.getElementById('project').value.trim();
+    const due = document.getElementById('due').value;
+    const status = document.getElementById('status').value;
+
+    if (!assignee || !project || !due) return;
+
+    if (editingId) {
+      const t = tasks.find(t => t.id === editingId);
+      if (t) {
+        t.assignee = assignee;
+        t.project = project;
+        t.due = due;
+        t.status = status;
+      }
+    } else {
+      tasks.push({ id: uid(), assignee, project, due, status });
+    }
+
+    saveTasks(tasks);
+    resetForm();
+    renderAll();
+  });
+
+  cancelEditBtn.addEventListener('click', resetForm);
+
+  weekListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+
+    if (action === 'delete') {
+      if (confirm('このタスクを削除しますか?')) {
+        tasks = tasks.filter(t => t.id !== id);
+        saveTasks(tasks);
+        renderAll();
+      }
+    } else if (action === 'edit') {
+      const t = tasks.find(t => t.id === id);
+      if (!t) return;
+      editingId = id;
+      document.getElementById('task-id').value = t.id;
+      document.getElementById('assignee').value = t.assignee;
+      document.getElementById('project').value = t.project;
+      document.getElementById('due').value = t.due;
+      document.getElementById('status').value = t.status;
+      formTitle.textContent = 'タスクを編集';
+      submitBtn.textContent = '更新';
+      cancelEditBtn.style.display = 'inline-block';
+      window.scrollTo({ top: document.querySelector('.card:last-of-type').offsetTop - 10, behavior: 'smooth' });
+    }
+  });
+
+  renderAll();
+</script>
+</body>
+</html>
