@@ -216,10 +216,8 @@
   }
   .task-card {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -229,6 +227,12 @@
   .task-card.overdue {
     background: var(--overdue-bg);
     border-color: var(--overdue);
+  }
+  .task-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
   }
   .task-main {
     display: flex;
@@ -259,6 +263,58 @@
     color: #6a6a60;
   }
   .task-meta .due-text.overdue-text { color: var(--overdue); font-weight: 700; }
+
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #e9e6da;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--main);
+    border-radius: 999px;
+  }
+  .task-card.overdue .progress-bar { background: #ecd4c9; }
+  .progress-text {
+    font-size: 0.72rem;
+    color: #6a6a60;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .task-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .progress-buttons {
+    display: flex;
+    gap: 6px;
+  }
+  .progress-buttons button {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .icon-btn-inc { background: var(--main); color: #fff; }
+  .icon-btn-inc:hover:not(:disabled) { background: var(--main-dark); }
+  .icon-btn-dec { background: #e9e6da; color: var(--text); }
+  .progress-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   .task-side {
     display: flex;
     align-items: center;
@@ -418,12 +474,8 @@
           <input type="date" id="due" required>
         </div>
         <div class="field">
-          <label for="status">ステータス</label>
-          <select id="status">
-            <option value="未着手">未着手</option>
-            <option value="進行中">進行中</option>
-            <option value="完了">完了</option>
-          </select>
+          <label for="total-count">全体数</label>
+          <input type="number" id="total-count" min="1" step="1" value="1" required>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="submit-btn">追加</button>
@@ -502,11 +554,27 @@
     return `hsl(${hue}, 42%, 40%)`;
   }
 
+  function computeStatus(done, total) {
+    if (done <= 0) return '未着手';
+    if (done >= total) return '完了';
+    return '進行中';
+  }
+
+  function normalizeTask(t) {
+    const total = (typeof t.total === 'number' && t.total > 0) ? Math.floor(t.total) : 1;
+    let done = (typeof t.done === 'number') ? t.done : (t.status === '完了' ? total : 0);
+    done = Math.max(0, Math.min(Math.floor(done), total));
+    t.total = total;
+    t.done = done;
+    if (!t.status) t.status = computeStatus(done, total);
+    return t;
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = formatYMD(today);
 
-  let tasks = loadTasks();
+  let tasks = loadTasks().map(normalizeTask);
   let editingId = null;
   let displayYear = today.getFullYear();
   let displayMonth = today.getMonth();
@@ -617,21 +685,32 @@
       const d = parseYMD(task.due);
       const dueLabel = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_JP[d.getDay()]})`;
       const initial = task.assignee.trim().charAt(0) || '?';
+      const pct = Math.round((task.done / task.total) * 100);
 
       return `
         <div class="task-card ${overdue ? 'overdue' : ''}">
-          <div class="task-main">
-            <span class="assignee-chip" style="background:${assigneeColor(task.assignee)}">${escapeHtml(initial)}</span>
-            <div class="task-info">
-              <div class="task-project">${escapeHtml(task.project)}</div>
-              <div class="task-meta">
-                担当: ${escapeHtml(task.assignee)} ・
-                <span class="due-text ${overdue ? 'overdue-text' : ''}">${dueLabel}${overdue ? '（超過）' : ''}</span>
+          <div class="task-top">
+            <div class="task-main">
+              <span class="assignee-chip" style="background:${assigneeColor(task.assignee)}">${escapeHtml(initial)}</span>
+              <div class="task-info">
+                <div class="task-project">${escapeHtml(task.project)}</div>
+                <div class="task-meta">
+                  担当: ${escapeHtml(task.assignee)} ・
+                  <span class="due-text ${overdue ? 'overdue-text' : ''}">${dueLabel}${overdue ? '（超過）' : ''}</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="task-side">
             <span class="status-badge status-${task.status}">${task.status}</span>
+          </div>
+          <div class="progress-row">
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <span class="progress-text">${task.done}/${task.total}完了</span>
+          </div>
+          <div class="task-actions-row">
+            <div class="progress-buttons">
+              <button class="icon-btn-dec" data-action="dec" data-id="${task.id}" ${task.done <= 0 ? 'disabled' : ''}>-1</button>
+              <button class="icon-btn-inc" data-action="inc" data-id="${task.id}" ${task.done >= task.total ? 'disabled' : ''}>+1完了</button>
+            </div>
             <div class="row-actions">
               <button class="icon-btn-edit" data-action="edit" data-id="${task.id}">編集</button>
               <button class="icon-btn-delete" data-action="delete" data-id="${task.id}">削除</button>
@@ -696,7 +775,7 @@
     const assignee = document.getElementById('assignee').value.trim();
     const project = document.getElementById('project').value.trim();
     const due = document.getElementById('due').value;
-    const status = document.getElementById('status').value;
+    const totalCount = Math.max(1, parseInt(document.getElementById('total-count').value, 10) || 1);
 
     if (!assignee || !project || !due) return;
 
@@ -706,10 +785,17 @@
         t.assignee = assignee;
         t.project = project;
         t.due = due;
-        t.status = status;
+        if (t.total !== totalCount) {
+          t.total = totalCount;
+          t.done = Math.max(0, Math.min(t.done, totalCount));
+          t.status = computeStatus(t.done, t.total);
+        }
       }
     } else {
-      tasks.push({ id: uid(), assignee, project, due, status });
+      tasks.push({
+        id: uid(), assignee, project, due,
+        total: totalCount, done: 0, status: computeStatus(0, totalCount)
+      });
     }
 
     saveTasks(tasks);
@@ -731,6 +817,20 @@
         saveTasks(tasks);
         renderAll();
       }
+    } else if (action === 'inc') {
+      const t = tasks.find(t => t.id === id);
+      if (!t || t.done >= t.total) return;
+      t.done += 1;
+      t.status = computeStatus(t.done, t.total);
+      saveTasks(tasks);
+      renderAll();
+    } else if (action === 'dec') {
+      const t = tasks.find(t => t.id === id);
+      if (!t || t.done <= 0) return;
+      t.done -= 1;
+      t.status = computeStatus(t.done, t.total);
+      saveTasks(tasks);
+      renderAll();
     } else if (action === 'edit') {
       const t = tasks.find(t => t.id === id);
       if (!t) return;
@@ -739,7 +839,7 @@
       document.getElementById('assignee').value = t.assignee;
       document.getElementById('project').value = t.project;
       document.getElementById('due').value = t.due;
-      document.getElementById('status').value = t.status;
+      document.getElementById('total-count').value = t.total;
       formTitle.textContent = 'タスクを編集';
       submitBtn.textContent = '更新';
       cancelEditBtn.style.display = 'inline-block';
