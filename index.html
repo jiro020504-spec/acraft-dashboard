@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACRAFT タスク差配ダッシュボード</title>
+<style>
+  :root {
+    --main: #6F7563;
+    --main-dark: #5a5f4f;
+    --bg: #F4F0E6;
+    --text: #2F3430;
+    --card-bg: #ffffff;
+    --border: #d8d3c4;
+    --overdue: #b3452f;
+    --overdue-bg: #f7e2dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin: 0 0 20px;
+    color: var(--main-dark);
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .form-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .form-card h2 {
+    font-size: 1rem;
+    margin: 0 0 12px;
+    color: var(--main-dark);
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    align-items: end;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .field label {
+    font-size: 0.78rem;
+    color: var(--text);
+    opacity: 0.75;
+  }
+  input, select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: #fff;
+    color: var(--text);
+    font-family: inherit;
+  }
+  input:focus, select:focus {
+    outline: 2px solid var(--main);
+    outline-offset: 1px;
+  }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: var(--main);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--main-dark); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--main-dark);
+    border: 1px solid var(--main);
+  }
+  .btn-secondary:hover { background: #e9e6da; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  thead th {
+    background: var(--main);
+    color: #fff;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  tbody td {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    vertical-align: middle;
+  }
+  tbody tr.overdue {
+    background: var(--overdue-bg);
+  }
+  tbody tr.overdue .due-date {
+    color: var(--overdue);
+    font-weight: 700;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .status-未着手 { background: #ddd8c8; color: #4a4a3f; }
+  .status-進行中 { background: #e2c98a; color: #5c4a12; }
+  .status-完了 { background: #b9c6ad; color: #34432b; }
+
+  .row-actions {
+    display: flex;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .row-actions button {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+  }
+  .icon-btn-edit {
+    background: #e9e6da;
+    color: var(--text);
+  }
+  .icon-btn-delete {
+    background: var(--overdue-bg);
+    color: var(--overdue);
+  }
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #7a7a70;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: #6a6a60;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: var(--overdue-bg);
+    border: 1px solid var(--overdue);
+  }
+  @media (max-width: 700px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    table, thead, tbody, tr, th, td { display: block; }
+    thead { display: none; }
+    tbody tr {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      padding: 8px 0;
+    }
+    tbody td {
+      border-top: none;
+      padding: 4px 12px;
+    }
+    tbody td::before {
+      content: attr(data-label);
+      font-weight: 600;
+      display: inline-block;
+      width: 80px;
+      color: var(--main-dark);
+      font-size: 0.75rem;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ACRAFT タスク差配ダッシュボード</h1>
+
+  <div class="form-card">
+    <h2 id="form-title">タスクを追加</h2>
+    <form id="task-form">
+      <input type="hidden" id="task-id">
+      <div class="form-grid">
+        <div class="field">
+          <label for="assignee">担当者</label>
+          <input type="text" id="assignee" required placeholder="例: 山田">
+        </div>
+        <div class="field">
+          <label for="project">案件名</label>
+          <input type="text" id="project" required placeholder="例: A社サイト改修">
+        </div>
+        <div class="field">
+          <label for="due">締切</label>
+          <input type="date" id="due" required>
+        </div>
+        <div class="field">
+          <label for="status">ステータス</label>
+          <select id="status">
+            <option value="未着手">未着手</option>
+            <option value="進行中">進行中</option>
+            <option value="完了">完了</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="submit-btn">追加</button>
+          <button type="button" class="btn-secondary" id="cancel-edit" style="display:none;">キャンセル</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div id="table-wrap"></div>
+
+  <div class="legend">
+    <span class="swatch"></span> 締切超過のタスク
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'acraft-tasks';
+
+  function loadTasks() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveTasks(tasks) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function todayStr() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function isOverdue(task) {
+    return task.status !== '完了' && task.due < todayStr();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  let tasks = loadTasks();
+  let editingId = null;
+
+  const form = document.getElementById('task-form');
+  const tableWrap = document.getElementById('table-wrap');
+  const formTitle = document.getElementById('form-title');
+  const submitBtn = document.getElementById('submit-btn');
+  const cancelEditBtn = document.getElementById('cancel-edit');
+
+  function render() {
+    const sorted = [...tasks].sort((a, b) => a.due.localeCompare(b.due));
+
+    if (sorted.length === 0) {
+      tableWrap.innerHTML = '<div class="empty-state">タスクがありません。上のフォームから追加してください。</div>';
+      return;
+    }
+
+    const rows = sorted.map(task => {
+      const overdue = isOverdue(task);
+      return `
+        <tr class="${overdue ? 'overdue' : ''}">
+          <td data-label="担当者">${escapeHtml(task.assignee)}</td>
+          <td data-label="案件名">${escapeHtml(task.project)}</td>
+          <td data-label="締切" class="due-date">${escapeHtml(task.due)}${overdue ? '（超過）' : ''}</td>
+          <td data-label="ステータス"><span class="status-badge status-${task.status}">${task.status}</span></td>
+          <td data-label="操作">
+            <div class="row-actions">
+              <button class="icon-btn-edit" data-action="edit" data-id="${task.id}">編集</button>
+              <button class="icon-btn-delete" data-action="delete" data-id="${task.id}">削除</button>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    tableWrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>担当者</th>
+            <th>案件名</th>
+            <th>締切</th>
+            <th>ステータス</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function resetForm() {
+    form.reset();
+    document.getElementById('task-id').value = '';
+    editingId = null;
+    formTitle.textContent = 'タスクを追加';
+    submitBtn.textContent = '追加';
+    cancelEditBtn.style.display = 'none';
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const assignee = document.getElementById('assignee').value.trim();
+    const project = document.getElementById('project').value.trim();
+    const due = document.getElementById('due').value;
+    const status = document.getElementById('status').value;
+
+    if (!assignee || !project || !due) return;
+
+    if (editingId) {
+      const t = tasks.find(t => t.id === editingId);
+      if (t) {
+        t.assignee = assignee;
+        t.project = project;
+        t.due = due;
+        t.status = status;
+      }
+    } else {
+      tasks.push({ id: uid(), assignee, project, due, status });
+    }
+
+    saveTasks(tasks);
+    resetForm();
+    render();
+  });
+
+  cancelEditBtn.addEventListener('click', resetForm);
+
+  tableWrap.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+
+    if (action === 'delete') {
+      if (confirm('このタスクを削除しますか?')) {
+        tasks = tasks.filter(t => t.id !== id);
+        saveTasks(tasks);
+        render();
+      }
+    } else if (action === 'edit') {
+      const t = tasks.find(t => t.id === id);
+      if (!t) return;
+      editingId = id;
+      document.getElementById('task-id').value = t.id;
+      document.getElementById('assignee').value = t.assignee;
+      document.getElementById('project').value = t.project;
+      document.getElementById('due').value = t.due;
+      document.getElementById('status').value = t.status;
+      formTitle.textContent = 'タスクを編集';
+      submitBtn.textContent = '更新';
+      cancelEditBtn.style.display = 'inline-block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
