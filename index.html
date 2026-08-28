@@ -204,6 +204,53 @@
       font-size: 0.75rem;
     }
   }
+  @media (max-width: 400px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+    padding: 10px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .filter-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .filter-field label {
+    font-size: 0.82rem;
+    color: var(--text);
+    opacity: 0.8;
+    white-space: nowrap;
+  }
+  .filter-field select {
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  .toggle-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .toggle-field input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--main);
+  }
+  @media (max-width: 400px) {
+    .filter-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .filter-field select { flex: 1; }
+  }
 </style>
 </head>
 <body>
@@ -241,6 +288,19 @@
         </div>
       </div>
     </form>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-field">
+      <label for="assignee-filter">担当者で絞り込み</label>
+      <select id="assignee-filter">
+        <option value="">すべて</option>
+      </select>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" id="hide-completed">
+      完了を非表示
+    </label>
   </div>
 
   <div id="table-wrap"></div>
@@ -294,12 +354,32 @@
   const formTitle = document.getElementById('form-title');
   const submitBtn = document.getElementById('submit-btn');
   const cancelEditBtn = document.getElementById('cancel-edit');
+  const assigneeFilter = document.getElementById('assignee-filter');
+  const hideCompletedCheckbox = document.getElementById('hide-completed');
+
+  function updateAssigneeOptions() {
+    const current = assigneeFilter.value;
+    const assignees = [...new Set(tasks.map(t => t.assignee))].sort((a, b) => a.localeCompare(b, 'ja'));
+    assigneeFilter.innerHTML = '<option value="">すべて</option>' +
+      assignees.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    if (assignees.includes(current)) assigneeFilter.value = current;
+  }
 
   function render() {
-    const sorted = [...tasks].sort((a, b) => a.due.localeCompare(b.due));
+    updateAssigneeOptions();
+
+    const filtered = tasks.filter(t => {
+      if (assigneeFilter.value && t.assignee !== assigneeFilter.value) return false;
+      if (hideCompletedCheckbox.checked && t.status === '完了') return false;
+      return true;
+    });
+    const sorted = filtered.sort((a, b) => a.due.localeCompare(b.due));
 
     if (sorted.length === 0) {
-      tableWrap.innerHTML = '<div class="empty-state">タスクがありません。上のフォームから追加してください。</div>';
+      const message = tasks.length === 0
+        ? 'タスクがありません。上のフォームから追加してください。'
+        : '該当するタスクがありません。';
+      tableWrap.innerHTML = `<div class="empty-state">${message}</div>`;
       return;
     }
 
@@ -371,6 +451,9 @@
   });
 
   cancelEditBtn.addEventListener('click', resetForm);
+
+  assigneeFilter.addEventListener('change', render);
+  hideCompletedCheckbox.addEventListener('change', render);
 
   tableWrap.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-action]');
