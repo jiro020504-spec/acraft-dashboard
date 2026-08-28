@@ -515,9 +515,69 @@
   @media (max-width: 400px) {
     .form-grid { grid-template-columns: 1fr; }
   }
+
+  .passcode-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(47, 52, 48, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .passcode-box {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 320px;
+    width: 100%;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  }
+  .passcode-box h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    color: var(--main-dark);
+  }
+  .passcode-box p {
+    font-size: 0.85rem;
+    color: #6a6a60;
+    margin: 0 0 14px;
+  }
+  .passcode-box input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .passcode-box .error-msg {
+    color: var(--overdue);
+    font-size: 0.82rem;
+    margin: -4px 0 10px;
+    display: none;
+  }
+  .passcode-box button {
+    width: 100%;
+    padding: 10px;
+  }
+  .passcode-box button:disabled {
+    background: #cfcabb;
+    cursor: not-allowed;
+  }
+  .error-state { color: var(--overdue); }
 </style>
 </head>
 <body>
+<div class="passcode-overlay" id="passcode-overlay" style="display:none;">
+  <div class="passcode-box">
+    <h2>パスコードを入力</h2>
+    <p>共通パスコードを入力してください。</p>
+    <form id="passcode-form">
+      <input type="password" id="passcode-input" placeholder="パスコード" autocomplete="off" required>
+      <div class="error-msg" id="passcode-error">パスコードが違います。</div>
+      <button type="submit" class="btn-primary" id="passcode-submit">開く</button>
+    </form>
+  </div>
+</div>
 <div class="container">
   <h1>ACRAFT 月間カレンダー タスク管理</h1>
   <div class="overdue-summary" id="overdue-summary">締切超過: 0件</div>
@@ -611,9 +671,40 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const STORAGE_KEY = 'acraft-calendar-tasks';
+  const SUPABASE_URL = 'https://timytwkdfmchzojvzjzq.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_QrhqeSQYfQbljjGyWIjx2A_rq7wFU5-';
+  const PASSCODE_STORAGE_KEY = 'acraft-passcode';
+  const OLD_LOCAL_KEY = 'acraft-calendar-tasks';
+  const LOCAL_MIGRATION_FLAG = 'acraft-calendar-migrated';
   const WEEKDAY_JP = ['日', '月', '火', '水', '木', '金', '土'];
+
+  let sb = null;
+
+  function getStoredPasscode() {
+    try { return localStorage.getItem(PASSCODE_STORAGE_KEY) || ''; }
+    catch (e) { return ''; }
+  }
+  function storePasscode(pc) {
+    try { localStorage.setItem(PASSCODE_STORAGE_KEY, pc); } catch (e) {}
+  }
+  function clearStoredPasscode() {
+    try { localStorage.removeItem(PASSCODE_STORAGE_KEY); } catch (e) {}
+  }
+
+  function createSupabaseClient(passcode) {
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      global: { headers: { 'x-app-passcode': passcode } }
+    });
+  }
+
+  async function verifyPasscode(passcode) {
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data, error } = await client.rpc('check_passcode', { input_passcode: passcode });
+    if (error) return false;
+    return data === true;
+  }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -687,26 +778,12 @@
     };
   }
 
-  // Reads projects from storage, migrating old flat task-array data
-  // (from before the project/task upgrade) into "1 project = 1 task".
-  function loadProjects() {
-    let raw;
-    try {
-      raw = localStorage.getItem(STORAGE_KEY);
-    } catch (e) {
-      return [];
-    }
-    if (!raw) return [];
-
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      return [];
-    }
-    if (!Array.isArray(data)) return [];
-
-    const isOldFlatFormat = data.length > 0 && !Array.isArray(data[0].tasks);
+  // Parses old localStorage data (either the pre-project flat task
+  // array, or the later local nested-project format) into the same
+  // { id, name, dueDate, tasks[] } shape used everywhere else.
+  function parseLocalProjectsData(data) {
+    if (!Array.isArray(data) || data.length === 0) return [];
+    const isOldFlatFormat = !Array.isArray(data[0].tasks);
 
     if (isOldFlatFormat) {
       return data.map(old => ({
@@ -725,8 +802,66 @@
     }));
   }
 
-  function saveProjects(list) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  // One-time upload of any pre-Supabase localStorage data into the
+  // cloud tables, so switching to the cloud doesn't lose existing work.
+  async function migrateLocalDataIfNeeded() {
+    try {
+      if (localStorage.getItem(LOCAL_MIGRATION_FLAG) === 'true') return;
+      const raw = localStorage.getItem(OLD_LOCAL_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        const localProjects = parseLocalProjectsData(data);
+        if (localProjects.length > 0) {
+          const projectRows = localProjects.map(p => ({
+            id: p.id, name: p.name, due_date: p.dueDate || null
+          }));
+          const { error: pErr } = await sb.from('calendar_projects').upsert(projectRows, { onConflict: 'id' });
+          if (pErr) console.error('Project migration failed', pErr);
+
+          const taskRows = localProjects.flatMap(p => p.tasks.map(t => ({
+            id: t.id, project_id: p.id, name: t.name, assignee: t.assignee,
+            due: t.due, status: t.status, total: t.total, done: t.done
+          })));
+          if (taskRows.length > 0) {
+            const { error: tErr } = await sb.from('calendar_tasks').upsert(taskRows, { onConflict: 'id' });
+            if (tErr) console.error('Task migration failed', tErr);
+          }
+        }
+      }
+      localStorage.setItem(LOCAL_MIGRATION_FLAG, 'true');
+    } catch (e) {
+      console.error('Migration error', e);
+    }
+  }
+
+  async function fetchProjects() {
+    const [projectsRes, tasksRes] = await Promise.all([
+      sb.from('calendar_projects').select('*').order('due_date', { ascending: true, nullsFirst: false }),
+      sb.from('calendar_tasks').select('*').order('due', { ascending: true })
+    ]);
+    if (projectsRes.error || tasksRes.error) {
+      console.error(projectsRes.error || tasksRes.error);
+      weekListEl.innerHTML = '<div class="empty-state error-state">データの読み込みに失敗しました。通信状況を確認して再読み込みしてください。</div>';
+      return [];
+    }
+    return projectsRes.data.map(p => ({
+      id: p.id,
+      name: p.name,
+      dueDate: p.due_date || '',
+      tasks: tasksRes.data
+        .filter(t => t.project_id === p.id)
+        .map(t => ({
+          id: t.id, name: t.name, assignee: t.assignee, due: t.due,
+          status: t.status, total: t.total, done: t.done
+        }))
+    }));
+  }
+
+  async function boot() {
+    weekListEl.innerHTML = '<div class="empty-state">読み込み中...</div>';
+    await migrateLocalDataIfNeeded();
+    projects = await fetchProjects();
+    renderAll();
   }
 
   function allTaskEntries() {
@@ -745,8 +880,7 @@
   today.setHours(0, 0, 0, 0);
   const todayStr = formatYMD(today);
 
-  let projects = loadProjects();
-  saveProjects(projects);
+  let projects = [];
 
   let editingTaskRef = null;
   let editingProjectId = null;
@@ -761,6 +895,11 @@
   const weekListEl = document.getElementById('week-list');
   const assigneeSummaryEl = document.getElementById('assignee-summary');
   const overdueSummaryEl = document.getElementById('overdue-summary');
+  const passcodeOverlay = document.getElementById('passcode-overlay');
+  const passcodeForm = document.getElementById('passcode-form');
+  const passcodeInput = document.getElementById('passcode-input');
+  const passcodeError = document.getElementById('passcode-error');
+  const passcodeSubmitBtn = document.getElementById('passcode-submit');
 
   const projectForm = document.getElementById('project-form');
   const projectFormTitle = document.getElementById('project-form-title');
@@ -1032,25 +1171,32 @@
     window.scrollTo({ top: projectForm.closest('.card').offsetTop - 10, behavior: 'smooth' });
   }
 
-  projectForm.addEventListener('submit', (e) => {
+  projectForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('project-name').value.trim();
     const dueDate = document.getElementById('project-due').value;
     if (!name) return;
 
-    if (editingProjectId) {
-      const p = projects.find(p => p.id === editingProjectId);
-      if (p) {
-        p.name = name;
-        p.dueDate = dueDate;
+    projectSubmitBtn.disabled = true;
+    try {
+      if (editingProjectId) {
+        const { error } = await sb.from('calendar_projects')
+          .update({ name, due_date: dueDate || null })
+          .eq('id', editingProjectId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from('calendar_projects')
+          .insert({ id: uid(), name, due_date: dueDate || null });
+        if (error) throw error;
       }
-    } else {
-      projects.push({ id: uid(), name, dueDate, tasks: [] });
+      resetProjectForm();
+      projects = await fetchProjects();
+      renderAll();
+    } catch (err) {
+      alert('保存に失敗しました: ' + err.message);
+    } finally {
+      projectSubmitBtn.disabled = false;
     }
-
-    saveProjects(projects);
-    resetProjectForm();
-    renderAll();
   });
 
   projectCancelEditBtn.addEventListener('click', resetProjectForm);
@@ -1080,7 +1226,7 @@
     window.scrollTo({ top: taskForm.closest('.card').offsetTop - 10, behavior: 'smooth' });
   }
 
-  taskForm.addEventListener('submit', (e) => {
+  taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const projectId = taskProjectSelect.value;
     const name = document.getElementById('task-name').value.trim();
@@ -1089,42 +1235,43 @@
     const totalCount = Math.max(1, parseInt(document.getElementById('total-count').value, 10) || 1);
 
     if (!projectId || !name || !assignee || !due) return;
-    const targetProject = projects.find(p => p.id === projectId);
-    if (!targetProject) return;
 
-    if (editingTaskRef) {
-      const sourceProject = projects.find(p => p.id === editingTaskRef.projectId);
-      const t = sourceProject && sourceProject.tasks.find(t => t.id === editingTaskRef.taskId);
-      if (t) {
-        if (sourceProject.id !== targetProject.id) {
-          sourceProject.tasks = sourceProject.tasks.filter(x => x.id !== t.id);
-          targetProject.tasks.push(t);
+    submitBtn.disabled = true;
+    try {
+      if (editingTaskRef) {
+        const sourceProject = projects.find(p => p.id === editingTaskRef.projectId);
+        const currentTask = sourceProject && sourceProject.tasks.find(t => t.id === editingTaskRef.taskId);
+        let done = currentTask ? currentTask.done : 0;
+        let status = currentTask ? currentTask.status : computeStatus(0, totalCount);
+        if (!currentTask || currentTask.total !== totalCount) {
+          done = Math.max(0, Math.min(done, totalCount));
+          status = computeStatus(done, totalCount);
         }
-        t.name = name;
-        t.assignee = assignee;
-        t.due = due;
-        if (t.total !== totalCount) {
-          t.total = totalCount;
-          t.done = Math.max(0, Math.min(t.done, totalCount));
-          t.status = computeStatus(t.done, t.total);
-        }
+        const { error } = await sb.from('calendar_tasks')
+          .update({ project_id: projectId, name, assignee, due, total: totalCount, done, status })
+          .eq('id', editingTaskRef.taskId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from('calendar_tasks').insert({
+          id: uid(), project_id: projectId, name, assignee, due,
+          total: totalCount, done: 0, status: computeStatus(0, totalCount)
+        });
+        if (error) throw error;
       }
-    } else {
-      targetProject.tasks.push({
-        id: uid(), name, assignee, due,
-        total: totalCount, done: 0, status: computeStatus(0, totalCount)
-      });
+      resetTaskForm();
+      projects = await fetchProjects();
+      renderAll();
+    } catch (err) {
+      alert('保存に失敗しました: ' + err.message);
+    } finally {
+      submitBtn.disabled = false;
     }
-
-    saveProjects(projects);
-    resetTaskForm();
-    renderAll();
   });
 
   cancelEditBtn.addEventListener('click', resetTaskForm);
 
   // ---- Week list interactions (accordion + task actions) ----
-  weekListEl.addEventListener('click', (e) => {
+  weekListEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action], .project-toggle[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
@@ -1144,9 +1291,10 @@
 
     if (action === 'delete-project') {
       if (confirm('このプロジェクトを削除しますか?中のタスクもすべて削除されます。')) {
-        projects = projects.filter(p => p.id !== projectId);
+        const { error } = await sb.from('calendar_projects').delete().eq('id', projectId);
+        if (error) { alert('削除に失敗しました: ' + error.message); return; }
         delete projectOpenState[projectId];
-        saveProjects(projects);
+        projects = await fetchProjects();
         renderAll();
       }
       return;
@@ -1160,20 +1308,25 @@
 
     if (action === 'inc') {
       if (task.done >= task.total) return;
-      task.done += 1;
-      task.status = computeStatus(task.done, task.total);
-      saveProjects(projects);
+      const done = task.done + 1;
+      const status = computeStatus(done, task.total);
+      const { error } = await sb.from('calendar_tasks').update({ done, status }).eq('id', taskId);
+      if (error) { alert('更新に失敗しました: ' + error.message); return; }
+      projects = await fetchProjects();
       renderAll();
     } else if (action === 'dec') {
       if (task.done <= 0) return;
-      task.done -= 1;
-      task.status = computeStatus(task.done, task.total);
-      saveProjects(projects);
+      const done = task.done - 1;
+      const status = computeStatus(done, task.total);
+      const { error } = await sb.from('calendar_tasks').update({ done, status }).eq('id', taskId);
+      if (error) { alert('更新に失敗しました: ' + error.message); return; }
+      projects = await fetchProjects();
       renderAll();
     } else if (action === 'delete-task') {
       if (confirm('このタスクを削除しますか?')) {
-        project.tasks = project.tasks.filter(t => t.id !== taskId);
-        saveProjects(projects);
+        const { error } = await sb.from('calendar_tasks').delete().eq('id', taskId);
+        if (error) { alert('削除に失敗しました: ' + error.message); return; }
+        projects = await fetchProjects();
         renderAll();
       }
     } else if (action === 'edit-task') {
@@ -1181,7 +1334,42 @@
     }
   });
 
-  renderAll();
+  async function initApp() {
+    const stored = getStoredPasscode();
+    if (stored) {
+      const ok = await verifyPasscode(stored);
+      if (ok) {
+        sb = createSupabaseClient(stored);
+        passcodeOverlay.style.display = 'none';
+        await boot();
+        return;
+      }
+      clearStoredPasscode();
+    }
+    passcodeOverlay.style.display = 'flex';
+    passcodeInput.focus();
+  }
+
+  passcodeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = passcodeInput.value;
+    if (!val) return;
+    passcodeSubmitBtn.disabled = true;
+    passcodeError.style.display = 'none';
+    const ok = await verifyPasscode(val);
+    passcodeSubmitBtn.disabled = false;
+    if (ok) {
+      storePasscode(val);
+      sb = createSupabaseClient(val);
+      passcodeOverlay.style.display = 'none';
+      await boot();
+    } else {
+      passcodeError.style.display = 'block';
+      passcodeInput.select();
+    }
+  });
+
+  initApp();
 </script>
 </body>
 </html>

@@ -251,9 +251,69 @@
     .filter-bar { flex-direction: column; align-items: stretch; gap: 10px; }
     .filter-field select { flex: 1; }
   }
+
+  .passcode-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(47, 52, 48, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .passcode-box {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 320px;
+    width: 100%;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  }
+  .passcode-box h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    color: var(--main-dark);
+  }
+  .passcode-box p {
+    font-size: 0.85rem;
+    color: #6a6a60;
+    margin: 0 0 14px;
+  }
+  .passcode-box input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .passcode-box .error-msg {
+    color: var(--overdue);
+    font-size: 0.82rem;
+    margin: -4px 0 10px;
+    display: none;
+  }
+  .passcode-box button {
+    width: 100%;
+    padding: 10px;
+  }
+  .passcode-box button:disabled {
+    background: #cfcabb;
+    cursor: not-allowed;
+  }
+  .error-state { color: var(--overdue); }
 </style>
 </head>
 <body>
+<div class="passcode-overlay" id="passcode-overlay" style="display:none;">
+  <div class="passcode-box">
+    <h2>パスコードを入力</h2>
+    <p>共通パスコードを入力してください。</p>
+    <form id="passcode-form">
+      <input type="password" id="passcode-input" placeholder="パスコード" autocomplete="off" required>
+      <div class="error-msg" id="passcode-error">パスコードが違います。</div>
+      <button type="submit" class="btn-primary" id="passcode-submit">開く</button>
+    </form>
+  </div>
+</div>
 <div class="container">
   <h1>ACRAFT タスク差配ダッシュボード</h1>
 
@@ -310,20 +370,64 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const STORAGE_KEY = 'acraft-tasks';
+  const SUPABASE_URL = 'https://timytwkdfmchzojvzjzq.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_QrhqeSQYfQbljjGyWIjx2A_rq7wFU5-';
+  const PASSCODE_STORAGE_KEY = 'acraft-passcode';
+  const OLD_LOCAL_TASKS_KEY = 'acraft-tasks';
+  const LOCAL_MIGRATION_FLAG = 'acraft-dashboard-migrated';
 
-  function loadTasks() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
+  let sb = null;
+
+  function getStoredPasscode() {
+    try { return localStorage.getItem(PASSCODE_STORAGE_KEY) || ''; }
+    catch (e) { return ''; }
+  }
+  function storePasscode(pc) {
+    try { localStorage.setItem(PASSCODE_STORAGE_KEY, pc); } catch (e) {}
+  }
+  function clearStoredPasscode() {
+    try { localStorage.removeItem(PASSCODE_STORAGE_KEY); } catch (e) {}
   }
 
-  function saveTasks(tasks) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  function createSupabaseClient(passcode) {
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      global: { headers: { 'x-app-passcode': passcode } }
+    });
+  }
+
+  async function verifyPasscode(passcode) {
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data, error } = await client.rpc('check_passcode', { input_passcode: passcode });
+    if (error) return false;
+    return data === true;
+  }
+
+  // One-time upload of any pre-Supabase localStorage data into the
+  // cloud table, so switching to the cloud doesn't lose existing work.
+  async function migrateLocalDataIfNeeded() {
+    try {
+      if (localStorage.getItem(LOCAL_MIGRATION_FLAG) === 'true') return;
+      const raw = localStorage.getItem(OLD_LOCAL_TASKS_KEY);
+      if (raw) {
+        const localTasks = JSON.parse(raw);
+        if (Array.isArray(localTasks) && localTasks.length > 0) {
+          const rows = localTasks.map(t => ({
+            id: t.id || uid(),
+            assignee: t.assignee || '',
+            project: t.project || '',
+            due: t.due || todayStr(),
+            status: t.status || '未着手'
+          }));
+          const { error } = await sb.from('dashboard_tasks').upsert(rows, { onConflict: 'id' });
+          if (error) console.error('Migration failed', error);
+        }
+      }
+      localStorage.setItem(LOCAL_MIGRATION_FLAG, 'true');
+    } catch (e) {
+      console.error('Migration error', e);
+    }
   }
 
   function uid() {
@@ -346,7 +450,7 @@
     return div.innerHTML;
   }
 
-  let tasks = loadTasks();
+  let tasks = [];
   let editingId = null;
 
   const form = document.getElementById('task-form');
@@ -356,6 +460,34 @@
   const cancelEditBtn = document.getElementById('cancel-edit');
   const assigneeFilter = document.getElementById('assignee-filter');
   const hideCompletedCheckbox = document.getElementById('hide-completed');
+  const passcodeOverlay = document.getElementById('passcode-overlay');
+  const passcodeForm = document.getElementById('passcode-form');
+  const passcodeInput = document.getElementById('passcode-input');
+  const passcodeError = document.getElementById('passcode-error');
+  const passcodeSubmitBtn = document.getElementById('passcode-submit');
+
+  async function fetchTasks() {
+    const { data, error } = await sb.from('dashboard_tasks').select('*').order('due', { ascending: true });
+    if (error) {
+      console.error(error);
+      tableWrap.innerHTML = '<div class="empty-state error-state">データの読み込みに失敗しました。通信状況を確認して再読み込みしてください。</div>';
+      return [];
+    }
+    return data.map(row => ({
+      id: row.id,
+      assignee: row.assignee,
+      project: row.project,
+      due: row.due,
+      status: row.status
+    }));
+  }
+
+  async function boot() {
+    tableWrap.innerHTML = '<div class="empty-state">読み込み中...</div>';
+    await migrateLocalDataIfNeeded();
+    tasks = await fetchTasks();
+    render();
+  }
 
   function updateAssigneeOptions() {
     const current = assigneeFilter.value;
@@ -424,7 +556,7 @@
     cancelEditBtn.style.display = 'none';
   }
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const assignee = document.getElementById('assignee').value.trim();
     const project = document.getElementById('project').value.trim();
@@ -433,21 +565,26 @@
 
     if (!assignee || !project || !due) return;
 
-    if (editingId) {
-      const t = tasks.find(t => t.id === editingId);
-      if (t) {
-        t.assignee = assignee;
-        t.project = project;
-        t.due = due;
-        t.status = status;
+    submitBtn.disabled = true;
+    try {
+      if (editingId) {
+        const { error } = await sb.from('dashboard_tasks')
+          .update({ assignee, project, due, status })
+          .eq('id', editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from('dashboard_tasks')
+          .insert({ id: uid(), assignee, project, due, status });
+        if (error) throw error;
       }
-    } else {
-      tasks.push({ id: uid(), assignee, project, due, status });
+      resetForm();
+      tasks = await fetchTasks();
+      render();
+    } catch (err) {
+      alert('保存に失敗しました: ' + err.message);
+    } finally {
+      submitBtn.disabled = false;
     }
-
-    saveTasks(tasks);
-    resetForm();
-    render();
   });
 
   cancelEditBtn.addEventListener('click', resetForm);
@@ -455,7 +592,7 @@
   assigneeFilter.addEventListener('change', render);
   hideCompletedCheckbox.addEventListener('change', render);
 
-  tableWrap.addEventListener('click', (e) => {
+  tableWrap.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const id = btn.dataset.id;
@@ -463,8 +600,9 @@
 
     if (action === 'delete') {
       if (confirm('このタスクを削除しますか?')) {
-        tasks = tasks.filter(t => t.id !== id);
-        saveTasks(tasks);
+        const { error } = await sb.from('dashboard_tasks').delete().eq('id', id);
+        if (error) { alert('削除に失敗しました: ' + error.message); return; }
+        tasks = await fetchTasks();
         render();
       }
     } else if (action === 'edit') {
@@ -483,7 +621,42 @@
     }
   });
 
-  render();
+  async function initApp() {
+    const stored = getStoredPasscode();
+    if (stored) {
+      const ok = await verifyPasscode(stored);
+      if (ok) {
+        sb = createSupabaseClient(stored);
+        passcodeOverlay.style.display = 'none';
+        await boot();
+        return;
+      }
+      clearStoredPasscode();
+    }
+    passcodeOverlay.style.display = 'flex';
+    passcodeInput.focus();
+  }
+
+  passcodeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = passcodeInput.value;
+    if (!val) return;
+    passcodeSubmitBtn.disabled = true;
+    passcodeError.style.display = 'none';
+    const ok = await verifyPasscode(val);
+    passcodeSubmitBtn.disabled = false;
+    if (ok) {
+      storePasscode(val);
+      sb = createSupabaseClient(val);
+      passcodeOverlay.style.display = 'none';
+      await boot();
+    } else {
+      passcodeError.style.display = 'block';
+      passcodeInput.select();
+    }
+  });
+
+  initApp();
 </script>
 </body>
 </html>
